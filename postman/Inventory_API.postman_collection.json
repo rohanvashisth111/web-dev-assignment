@@ -1,0 +1,863 @@
+{
+  "info": {
+    "_postman_id": "a3b2c1d0-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+    "name": "Inventory and Data Management System API",
+    "description": "Postman Collection for Web Dev III Assignment 3: Inventory and Data Management System REST API.\nCovers all CRUD endpoints, query filtering, sorting, pagination, low-stock reports, MongoDB aggregation summaries, stock adjustments, and error handling test cases.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Create Product",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201 Created\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Response contains product fields\", function () {",
+              "    pm.expect(jsonData).to.have.property(\"_id\");",
+              "    pm.expect(jsonData.name).to.eql(\"Gel Pen Pack of 15 (Postman Test)\");",
+              "    pm.expect(jsonData.sku).to.eql(\"STNY-PN-POSTMAN-01\");",
+              "    pm.expect(jsonData.category).to.eql(\"Stationery\");",
+              "    pm.expect(jsonData.price).to.eql(120);",
+              "    pm.expect(jsonData.quantity).to.eql(40);",
+              "    pm.expect(jsonData.reorderLevel).to.eql(20);",
+              "    pm.expect(jsonData.supplier).to.eql(\"Cello Pens\");",
+              "});",
+              "",
+              "pm.test(\"Calculated stockValue is price * quantity\", function () {",
+              "    pm.expect(jsonData.stockValue).to.eql(4800);",
+              "});",
+              "",
+              "// Save productId for downstream requests",
+              "var id = jsonData._id || jsonData.id;",
+              "pm.collectionVariables.set(\"productId\", id);",
+              "console.log(\"Saved productId to collection variable:\", id);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Gel Pen Pack of 15 (Postman Test)\",\n  \"sku\": \"STNY-PN-POSTMAN-01\",\n  \"category\": \"Stationery\",\n  \"price\": 120,\n  \"quantity\": 40,\n  \"reorderLevel\": 20,\n  \"supplier\": \"Cello Pens\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/products",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products"
+          ]
+        },
+        "description": "Creates a new product in the inventory. Calculates stockValue dynamically and stores the returned _id in the {{productId}} collection variable."
+      },
+      "response": []
+    },
+    {
+      "name": "2. Get All Products (Pagination & Defaults)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Response has pagination metadata structure\", function () {",
+              "    pm.expect(jsonData).to.have.property(\"total\");",
+              "    pm.expect(jsonData).to.have.property(\"page\");",
+              "    pm.expect(jsonData).to.have.property(\"totalPages\");",
+              "    pm.expect(jsonData).to.have.property(\"count\");",
+              "    pm.expect(jsonData).to.have.property(\"products\");",
+              "    pm.expect(jsonData.products).to.be.an(\"array\");",
+              "});",
+              "",
+              "pm.test(\"Products include calculated stockValue\", function () {",
+              "    if (jsonData.products.length > 0) {",
+              "        var p = jsonData.products[0];",
+              "        pm.expect(p).to.have.property(\"stockValue\");",
+              "        pm.expect(p.stockValue).to.eql(p.price * p.quantity);",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products?page=1&limit=10",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "description": "Retrieves paginated list of products with metadata: total, page, totalPages, count, and products."
+      },
+      "response": []
+    },
+    {
+      "name": "3. Filter by Category (Electronics)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"All returned products belong to Electronics\", function () {",
+              "    pm.expect(jsonData.products.length).to.be.above(0);",
+              "    jsonData.products.forEach(function (product) {",
+              "        pm.expect(product.category.toLowerCase()).to.eql(\"electronics\");",
+              "    });",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products?category=Electronics",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products"
+          ],
+          "query": [
+            {
+              "key": "category",
+              "value": "Electronics"
+            }
+          ]
+        },
+        "description": "Filters products by category."
+      },
+      "response": []
+    },
+    {
+      "name": "4. Search Products by Name / SKU",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Returned products match search term\", function () {",
+              "    pm.expect(jsonData.products.length).to.be.above(0);",
+              "    var matches = jsonData.products.some(function (p) {",
+              "        return p.name.toLowerCase().includes(\"keyboard\") || p.sku.toLowerCase().includes(\"keyboard\");",
+              "    });",
+              "    pm.expect(matches).to.be.true;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products?search=Keyboard",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products"
+          ],
+          "query": [
+            {
+              "key": "search",
+              "value": "Keyboard"
+            }
+          ]
+        },
+        "description": "Searches products by case-insensitive name or SKU regex query."
+      },
+      "response": []
+    },
+    {
+      "name": "5. Filter by Price Range & Sort (Ascending)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"All products fall within price range 1000 - 5000\", function () {",
+              "    jsonData.products.forEach(function (product) {",
+              "        pm.expect(product.price).to.be.at.least(1000);",
+              "        pm.expect(product.price).to.be.at.most(5000);",
+              "    });",
+              "});",
+              "",
+              "pm.test(\"Products are sorted by price ascending\", function () {",
+              "    for (var i = 0; i < jsonData.products.length - 1; i++) {",
+              "        pm.expect(jsonData.products[i].price).to.be.at.most(jsonData.products[i + 1].price);",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products?minPrice=1000&maxPrice=5000&sortBy=price&sortOrder=asc",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products"
+          ],
+          "query": [
+            {
+              "key": "minPrice",
+              "value": "1000"
+            },
+            {
+              "key": "maxPrice",
+              "value": "5000"
+            },
+            {
+              "key": "sortBy",
+              "value": "price"
+            },
+            {
+              "key": "sortOrder",
+              "value": "asc"
+            }
+          ]
+        },
+        "description": "Applies minPrice and maxPrice filters and sorts results ascending by price."
+      },
+      "response": []
+    },
+    {
+      "name": "6. Low-Stock Report",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Response contains count and lowStockItems\", function () {",
+              "    pm.expect(jsonData).to.have.property(\"count\");",
+              "    pm.expect(jsonData).to.have.property(\"lowStockItems\");",
+              "    pm.expect(jsonData.lowStockItems).to.be.an(\"array\");",
+              "    pm.expect(jsonData.count).to.eql(jsonData.lowStockItems.length);",
+              "});",
+              "",
+              "pm.test(\"All low stock items have quantity <= reorderLevel\", function () {",
+              "    jsonData.lowStockItems.forEach(function (item) {",
+              "        pm.expect(item.quantity).to.be.at.most(item.reorderLevel);",
+              "        pm.expect(item).to.have.property(\"stockValue\");",
+              "    });",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products/low-stock",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products",
+            "low-stock"
+          ]
+        },
+        "description": "Returns items whose quantity is less than or equal to reorderLevel, including count and calculated stockValue."
+      },
+      "response": []
+    },
+    {
+      "name": "7. Category Summary (Aggregation)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Response contains categories and summary array\", function () {",
+              "    pm.expect(jsonData).to.have.property(\"categories\");",
+              "    pm.expect(jsonData).to.have.property(\"summary\");",
+              "    pm.expect(jsonData.summary).to.be.an(\"array\");",
+              "    pm.expect(jsonData.categories).to.eql(jsonData.summary.length);",
+              "});",
+              "",
+              "pm.test(\"Aggregation summary objects contain expected fields\", function () {",
+              "    jsonData.summary.forEach(function (cat) {",
+              "        pm.expect(cat).to.have.property(\"_id\");",
+              "        pm.expect(cat).to.have.property(\"totalItems\");",
+              "        pm.expect(cat).to.have.property(\"totalQuantity\");",
+              "        pm.expect(cat).to.have.property(\"totalStockValue\");",
+              "        pm.expect(cat).to.have.property(\"avgPrice\");",
+              "    });",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products/summary",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products",
+            "summary"
+          ]
+        },
+        "description": "Executes MongoDB aggregation pipeline grouping by category to calculate totalItems, totalQuantity, totalStockValue, and avgPrice."
+      },
+      "response": []
+    },
+    {
+      "name": "8. Get Single Product by ID",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Fetched product matches saved productId\", function () {",
+              "    var id = jsonData._id || jsonData.id;",
+              "    pm.expect(id).to.eql(pm.collectionVariables.get(\"productId\"));",
+              "    pm.expect(jsonData).to.have.property(\"stockValue\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products/{{productId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products",
+            "{{productId}}"
+          ]
+        },
+        "description": "Fetches a single product by its MongoDB ObjectId stored in the {{productId}} variable."
+      },
+      "response": []
+    },
+    {
+      "name": "9. Update Product (PUT)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Product details and stockValue updated correctly\", function () {",
+              "    pm.expect(jsonData.price).to.eql(140);",
+              "    pm.expect(jsonData.quantity).to.eql(60);",
+              "    pm.expect(jsonData.stockValue).to.eql(8400);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Gel Pen Pack of 15 (Updated)\",\n  \"sku\": \"STNY-PN-POSTMAN-01\",\n  \"category\": \"Stationery\",\n  \"price\": 140,\n  \"quantity\": 60\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/products/{{productId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products",
+            "{{productId}}"
+          ]
+        },
+        "description": "Updates price to 140 and quantity to 60. Recalculates stockValue (140 * 60 = 8400)."
+      },
+      "response": []
+    },
+    {
+      "name": "10. Stock Increment (PATCH +10)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Stock updated message returned\", function () {",
+              "    pm.expect(jsonData.message).to.eql(\"Stock updated\");",
+              "});",
+              "",
+              "pm.test(\"Quantity incremented by 10 (from 60 to 70)\", function () {",
+              "    pm.expect(jsonData.product.quantity).to.eql(70);",
+              "    pm.expect(jsonData.product.stockValue).to.eql(70 * 140);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"change\": 10\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/products/{{productId}}/stock",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products",
+            "{{productId}}",
+            "stock"
+          ]
+        },
+        "description": "Increases product stock by 10 units."
+      },
+      "response": []
+    },
+    {
+      "name": "11. Stock Decrement (PATCH -20)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Quantity decremented by 20 (from 70 to 50)\", function () {",
+              "    pm.expect(jsonData.product.quantity).to.eql(50);",
+              "    pm.expect(jsonData.product.stockValue).to.eql(50 * 140);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"change\": -20\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/products/{{productId}}/stock",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products",
+            "{{productId}}",
+            "stock"
+          ]
+        },
+        "description": "Decreases product stock by 20 units."
+      },
+      "response": []
+    },
+    {
+      "name": "12. Insufficient Stock Error Test (PATCH -999)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400 Bad Request\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Returns insufficient stock error message\", function () {",
+              "    pm.expect(jsonData.message).to.include(\"Insufficient stock\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"change\": -999\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/products/{{productId}}/stock",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products",
+            "{{productId}}",
+            "stock"
+          ]
+        },
+        "description": "Verifies that reducing stock below zero is rejected with HTTP 400."
+      },
+      "response": []
+    },
+    {
+      "name": "13. Duplicate SKU Error Test",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400 Bad Request\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Returns duplicate SKU error message\", function () {",
+              "    pm.expect(jsonData.message).to.include(\"Duplicate SKU error\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Duplicate SKU Test Item\",\n  \"sku\": \"STNY-PN-POSTMAN-01\",\n  \"category\": \"Stationery\",\n  \"price\": 100,\n  \"quantity\": 10,\n  \"reorderLevel\": 5,\n  \"supplier\": \"Test Supplier\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/products",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products"
+          ]
+        },
+        "description": "Verifies duplicate SKU prevention with HTTP 400."
+      },
+      "response": []
+    },
+    {
+      "name": "14. Validation Error Test (Negative Price)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400 Bad Request\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Returns validation error message\", function () {",
+              "    pm.expect(jsonData.message).to.include(\"Price must be a positive number or zero\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Invalid Price Item\",\n  \"sku\": \"INVALID-PRICE-99\",\n  \"category\": \"Stationery\",\n  \"price\": -50,\n  \"quantity\": 10,\n  \"reorderLevel\": 5,\n  \"supplier\": \"Test Supplier\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/products",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products"
+          ]
+        },
+        "description": "Verifies that negative price is rejected with HTTP 400."
+      },
+      "response": []
+    },
+    {
+      "name": "15. Invalid MongoDB ID Test",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400 Bad Request\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Returns invalid ID format error message\", function () {",
+              "    pm.expect(jsonData.message).to.include(\"Invalid product ID format\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products/invalid-id-format",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products",
+            "invalid-id-format"
+          ]
+        },
+        "description": "Verifies that malformed ObjectIds return HTTP 400 with a clear error message."
+      },
+      "response": []
+    },
+    {
+      "name": "16. Delete Product (DELETE)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 OK\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Product deleted message returned with id\", function () {",
+              "    pm.expect(jsonData.message).to.eql(\"Product deleted\");",
+              "    pm.expect(jsonData.id).to.eql(pm.collectionVariables.get(\"productId\"));",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products/{{productId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products",
+            "{{productId}}"
+          ]
+        },
+        "description": "Deletes the product created in Request 1 using {{productId}}."
+      },
+      "response": []
+    },
+    {
+      "name": "17. Verify Product Deleted (404 Not Found)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 404 Not Found\", function () {",
+              "    pm.response.to.have.status(404);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test(\"Returns Product not found message\", function () {",
+              "    pm.expect(jsonData.message).to.eql(\"Product not found\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products/{{productId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products",
+            "{{productId}}"
+          ]
+        },
+        "description": "Verifies the deleted product cannot be retrieved and returns HTTP 404."
+      },
+      "response": []
+    }
+  ]
+}
